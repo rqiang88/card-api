@@ -1,0 +1,53 @@
+services:
+  card-api:
+    build:
+      context: .
+      args:
+        UID: ${DOCKER_USER_UID}
+        GID: ${DOCKER_USER_GID}
+        PROJECT: ${DOCKER_PROJECT_NAME}
+    container_name: ${DOCKER_CONTAINER_NAME}
+    user: ${DOCKER_USER_UID}:${DOCKER_USER_GID}
+    env_file:
+      - .env
+    ports:
+      - ${DOCKER_PORT}:3000
+    volumes:
+      - ${DOCKER_SSH}:/home/node/.ssh
+      - ${DOCKER_PROJECT}:/home/node/${DOCKER_PROJECT_NAME}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    dns:
+      - 8.8.8.8
+      - 114.114.114.114
+      - 1.1.1.1
+    networks:
+      - card-network
+    command:
+      - sh
+      - -c
+      - |
+          yarn install
+          yarn db:run
+          yarn build
+          yarn start
+    depends_on:
+      - card_pg
+
+  card_pg:
+    image: pgvector/pgvector:pg16
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    container_name: "card_pg"
+    volumes:
+      - ${PG_DATA}:/var/lib/postgresql/data
+    networks:
+      - card-network
+
+networks:
+  card-network:
+    driver: bridge

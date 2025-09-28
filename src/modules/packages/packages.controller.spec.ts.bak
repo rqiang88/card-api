@@ -1,0 +1,266 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
+import { PackagesController } from './packages.controller';
+import { PackagesService } from './packages.service';
+import { AuthGuard } from '@/core/guards/auth.guard';
+
+describe('PackagesController', () => {
+  let controller: PackagesController;
+  let service: PackagesService;
+
+  const mockPackage = {
+    id: 1,
+    name: '健身套餐',
+    description: '专业健身套餐',
+    type: 'amount',
+    category: 'fitness',
+    icon: 'fitness-icon.png',
+    originalPrice: 1000,
+    memberPrice: 800,
+    validityDays: 365,
+    totalTimes: null,
+    state: 1,
+    sortOrder: 0,
+    salesCount: 10,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const mockPackagesService = {
+    create: jest.fn(),
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [PackagesController],
+      providers: [
+        {
+          provide: PackagesService,
+          useValue: mockPackagesService,
+        },
+      ],
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .compile();
+
+    controller = module.get<PackagesController>(PackagesController);
+    service = module.get<PackagesService>(PackagesService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('create', () => {
+    it('should create a new package', async () => {
+      const createPackageDto = {
+        name: '健身套餐',
+        description: '专业健身套餐',
+        type: 'amount',
+        category: 'fitness',
+        originalPrice: 1000,
+        memberPrice: 800,
+        validityDays: 365,
+      };
+
+      mockPackagesService.create.mockResolvedValue(mockPackage);
+
+      const result = await controller.create(createPackageDto);
+
+      expect(service.create).toHaveBeenCalledWith(createPackageDto);
+      expect(result).toEqual(mockPackage);
+    });
+
+    it('should handle creation errors', async () => {
+      const createPackageDto = {
+        name: '健身套餐',
+        type: 'amount',
+        category: 'fitness',
+      };
+
+      mockPackagesService.create.mockRejectedValue(new Error('Creation failed'));
+
+      await expect(controller.create(createPackageDto)).rejects.toThrow('Creation failed');
+    });
+  });
+
+  describe('findAll', () => {
+    it('should return paginated packages', async () => {
+      const queryDto = { page: 1, limit: 10 };
+      const expectedResult = {
+        items: [mockPackage],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      };
+
+      mockPackagesService.findAll.mockResolvedValue(expectedResult);
+
+      const result = await controller.findAll(queryDto);
+
+      expect(service.findAll).toHaveBeenCalledWith(queryDto);
+      expect(result).toEqual(expectedResult);
+    });
+
+    it('should return filtered packages', async () => {
+      const queryDto = { page: 1, limit: 10, type: 'amount', category: 'fitness' };
+      const expectedResult = {
+        items: [mockPackage],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      };
+
+      mockPackagesService.findAll.mockResolvedValue(expectedResult);
+
+      const result = await controller.findAll(queryDto);
+
+      expect(service.findAll).toHaveBeenCalledWith(queryDto);
+      expect(result).toEqual(expectedResult);
+    });
+
+    it('should handle empty query parameters', async () => {
+      const queryDto = {};
+      const expectedResult = {
+        items: [mockPackage],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      };
+
+      mockPackagesService.findAll.mockResolvedValue(expectedResult);
+
+      const result = await controller.findAll(queryDto);
+
+      expect(service.findAll).toHaveBeenCalledWith(queryDto);
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('findOne', () => {
+    it('should return a package by id', async () => {
+      mockPackagesService.findOne.mockResolvedValue(mockPackage);
+
+      const result = await controller.findOne('1');
+
+      expect(service.findOne).toHaveBeenCalledWith(1);
+      expect(result).toEqual(mockPackage);
+    });
+
+    it('should handle string id parameter', async () => {
+      mockPackagesService.findOne.mockResolvedValue(mockPackage);
+
+      const result = await controller.findOne('123');
+
+      expect(service.findOne).toHaveBeenCalledWith(123);
+      expect(result).toEqual(mockPackage);
+    });
+
+    it('should throw NotFoundException when package not found', async () => {
+      mockPackagesService.findOne.mockRejectedValue(new NotFoundException('套餐 ID 999 不存在'));
+
+      await expect(controller.findOne('999')).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne('999')).rejects.toThrow('套餐 ID 999 不存在');
+    });
+
+    it('should handle invalid id parameter', async () => {
+      mockPackagesService.findOne.mockResolvedValue(mockPackage);
+
+      const result = await controller.findOne('0');
+
+      expect(service.findOne).toHaveBeenCalledWith(0);
+    });
+  });
+
+  describe('update', () => {
+    it('should update a package', async () => {
+      const updatePackageDto = { name: '更新的套餐名称' };
+      const updatedPackage = { ...mockPackage, ...updatePackageDto };
+
+      mockPackagesService.update.mockResolvedValue(updatedPackage);
+
+      const result = await controller.update('1', updatePackageDto);
+
+      expect(service.update).toHaveBeenCalledWith(1, updatePackageDto);
+      expect(result).toEqual(updatedPackage);
+    });
+
+    it('should handle string id parameter in update', async () => {
+      const updatePackageDto = { name: '更新的套餐名称' };
+      const updatedPackage = { ...mockPackage, ...updatePackageDto };
+
+      mockPackagesService.update.mockResolvedValue(updatedPackage);
+
+      const result = await controller.update('123', updatePackageDto);
+
+      expect(service.update).toHaveBeenCalledWith(123, updatePackageDto);
+      expect(result).toEqual(updatedPackage);
+    });
+
+    it('should throw NotFoundException when updating non-existent package', async () => {
+      const updatePackageDto = { name: '更新的套餐名称' };
+
+      mockPackagesService.update.mockRejectedValue(new NotFoundException('套餐 ID 999 不存在'));
+
+      await expect(controller.update('999', updatePackageDto)).rejects.toThrow(NotFoundException);
+    });
+
+    it('should handle empty update data', async () => {
+      const updatePackageDto = {};
+
+      mockPackagesService.update.mockResolvedValue(mockPackage);
+
+      const result = await controller.update('1', updatePackageDto);
+
+      expect(service.update).toHaveBeenCalledWith(1, updatePackageDto);
+      expect(result).toEqual(mockPackage);
+    });
+  });
+
+  describe('remove', () => {
+    it('should remove a package', async () => {
+      mockPackagesService.remove.mockResolvedValue(undefined);
+
+      const result = await controller.remove('1');
+
+      expect(service.remove).toHaveBeenCalledWith(1);
+      expect(result).toBeUndefined();
+    });
+
+    it('should handle string id parameter in remove', async () => {
+      mockPackagesService.remove.mockResolvedValue(undefined);
+
+      const result = await controller.remove('123');
+
+      expect(service.remove).toHaveBeenCalledWith(123);
+      expect(result).toBeUndefined();
+    });
+
+    it('should throw NotFoundException when removing non-existent package', async () => {
+      mockPackagesService.remove.mockRejectedValue(new NotFoundException('套餐 ID 999 不存在'));
+
+      await expect(controller.remove('999')).rejects.toThrow(NotFoundException);
+      await expect(controller.remove('999')).rejects.toThrow('套餐 ID 999 不存在');
+    });
+  });
+
+  describe('Authentication Guard', () => {
+    it('should be protected by AuthGuard', () => {
+      const guards = Reflect.getMetadata('__guards__', PackagesController);
+      const guardNames = guards.map((guard: any) => guard.name);
+      expect(guardNames).toContain('AuthGuard');
+    });
+  });
+});

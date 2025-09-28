@@ -1,0 +1,256 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { NotFoundException } from '@nestjs/common';
+import { PackagesService } from './packages.service';
+import { Package } from '../../entities/package.entity';
+import { CreatePackageDto } from './dto/create-package.dto';
+import { UpdatePackageDto } from './dto/update-package.dto';
+import { QueryPackageDto } from './dto/query-package.dto';
+
+describe('PackagesService', () => {
+  let service: PackagesService;
+  let repository: Repository<Package>;
+
+  const mockPackage = {
+    id: 1,
+    name: '健身套餐',
+    description: '专业健身套餐',
+    pack_stype: 'amount',
+    category: 'fitness',
+    icon: 'fitness-icon.png',
+    originalPrice: 1000,
+    memberPrice: 800,
+    validityDays: 365,
+    totalTimes: null,
+    state: 'active',
+    position: 0,
+    salesCount: 10,
+    payload: {},
+    deletedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    consumptionRecords: [],
+    rechargeRecords: [],
+  };
+
+  const mockRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    createQueryBuilder: jest.fn(),
+  };
+
+  const mockQueryBuilder = {
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    getManyAndCount: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        PackagesService,
+        {
+          provide: getRepositoryToken(Package),
+          useValue: mockRepository,
+        },
+      ],
+    }).compile();
+
+    service = module.get<PackagesService>(PackagesService);
+    repository = module.get<Repository<Package>>(getRepositoryToken(Package));
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('create', () => {
+    it('should create a new package', async () => {
+      const createPackageDto: CreatePackageDto = {
+        name: '健身套餐',
+        description: '专业健身套餐',
+        pack_stype: 'amount',
+        category: 'fitness',
+        originalPrice: 1000,
+        memberPrice: 800,
+        validityDays: 365,
+      };
+
+      mockRepository.create.mockReturnValue(mockPackage);
+      mockRepository.save.mockResolvedValue(mockPackage);
+
+      const result = await service.create(createPackageDto);
+
+      expect(mockRepository.create).toHaveBeenCalledWith(createPackageDto);
+      expect(mockRepository.save).toHaveBeenCalledWith(mockPackage);
+      expect(result).toEqual(mockPackage);
+    });
+
+    it('should handle creation errors', async () => {
+      const createPackageDto: CreatePackageDto = {
+        name: '健身套餐',
+        pack_stype: 'amount',
+        category: 'fitness',
+        originalPrice: 1000,
+        memberPrice: 800,
+        validityDays: 365,
+      };
+
+      mockRepository.create.mockReturnValue(mockPackage);
+      mockRepository.save.mockRejectedValue(new Error('Database error'));
+
+      await expect(service.create(createPackageDto)).rejects.toThrow('Database error');
+    });
+  });
+
+  describe('findAll', () => {
+    it('should return paginated packages without filters', async () => {
+      const queryDto = { page: 1, limit: 10 };
+      const mockResult = [[mockPackage], 1];
+
+      mockRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+      mockQueryBuilder.getManyAndCount.mockResolvedValue(mockResult);
+
+      const result = await service.findAll(queryDto);
+
+      expect(mockRepository.createQueryBuilder).toHaveBeenCalledWith('package');
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('package.sort_order', 'ASC');
+      expect(mockQueryBuilder.addOrderBy).toHaveBeenCalledWith('package.created_at', 'DESC');
+      expect(mockQueryBuilder.skip).toHaveBeenCalledWith(0);
+      expect(mockQueryBuilder.take).toHaveBeenCalledWith(10);
+      expect(result).toEqual({
+        items: [mockPackage],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      });
+    });
+
+    it('should return filtered packages by type', async () => {
+      const queryDto = { page: 1, limit: 10, type: 'amount' };
+      const mockResult = [[mockPackage], 1];
+
+      mockRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+      mockQueryBuilder.getManyAndCount.mockResolvedValue(mockResult);
+
+      await service.findAll(queryDto);
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('package.type = :type', { type: 'amount' });
+    });
+
+    it('should return filtered packages by category', async () => {
+      const queryDto = { page: 1, limit: 10, category: 'fitness' };
+      const mockResult = [[mockPackage], 1];
+
+      mockRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+      mockQueryBuilder.getManyAndCount.mockResolvedValue(mockResult);
+
+      await service.findAll(queryDto);
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('package.category = :category', { category: 'fitness' });
+    });
+
+    it('should return filtered packages by state', async () => {
+      const queryDto: QueryPackageDto = { page: 1, limit: 10, state: 'active' };
+      const mockResult = [[mockPackage], 1];
+
+      mockRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+      mockQueryBuilder.getManyAndCount.mockResolvedValue(mockResult);
+
+      await service.findAll(queryDto);
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('package.state = :state', { state: 'active' });
+    });
+
+    it('should calculate correct pagination', async () => {
+      const queryDto = { page: 2, limit: 5 };
+      const mockResult = [Array(3).fill(mockPackage), 13];
+
+      mockRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+      mockQueryBuilder.getManyAndCount.mockResolvedValue(mockResult);
+
+      const result = await service.findAll(queryDto);
+
+      expect(mockQueryBuilder.skip).toHaveBeenCalledWith(5);
+      expect(mockQueryBuilder.take).toHaveBeenCalledWith(5);
+      expect(result.totalPages).toBe(3);
+    });
+  });
+
+  describe('findOne', () => {
+    it('should return a package by id', async () => {
+      mockRepository.findOne.mockResolvedValue(mockPackage);
+
+      const result = await service.findOne(1);
+
+      expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(result).toEqual(mockPackage);
+    });
+
+    it('should throw NotFoundException when package not found', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(999)).rejects.toThrow('套餐 ID 999 不存在');
+    });
+  });
+
+  describe('update', () => {
+    it('should update a package', async () => {
+      const updatePackageDto = { name: '更新的套餐名称' };
+      const updatedPackage = { ...mockPackage, ...updatePackageDto };
+
+      mockRepository.update.mockResolvedValue({ affected: 1 });
+      jest.spyOn(service, 'findOne').mockResolvedValue(updatedPackage);
+
+      const result = await service.update(1, updatePackageDto);
+
+      expect(mockRepository.update).toHaveBeenCalledWith(1, updatePackageDto);
+      expect(service.findOne).toHaveBeenCalledWith(1);
+      expect(result).toEqual(updatedPackage);
+    });
+
+    it('should handle update errors', async () => {
+      const updatePackageDto = { name: '更新的套餐名称' };
+
+      mockRepository.update.mockRejectedValue(new Error('Database error'));
+
+      await expect(service.update(1, updatePackageDto)).rejects.toThrow('Database error');
+    });
+  });
+
+  describe('remove', () => {
+    it('should remove a package', async () => {
+      mockRepository.delete.mockResolvedValue({ affected: 1 });
+
+      await service.remove(1);
+
+      expect(mockRepository.delete).toHaveBeenCalledWith(1);
+    });
+
+    it('should throw NotFoundException when package to delete not found', async () => {
+      mockRepository.delete.mockResolvedValue({ affected: 0 });
+
+      await expect(service.remove(999)).rejects.toThrow(NotFoundException);
+      await expect(service.remove(999)).rejects.toThrow('套餐 ID 999 不存在');
+    });
+
+    it('should handle delete errors', async () => {
+      mockRepository.delete.mockRejectedValue(new Error('Database error'));
+
+      await expect(service.remove(1)).rejects.toThrow('Database error');
+    });
+  });
+});
