@@ -201,11 +201,13 @@ export class ConsumptionService {
 
     const [items, total] = await queryBuilder.getManyAndCount();
 
-    // 增强返回数据，添加套餐名称、充值次数和金额信息
+    // 增强返回数据，添加套餐名称、套餐类型、充值次数和金额信息
     const enhancedItems = items.map(item => ({
       ...item,
       // 套餐名称
       packageName: item.package?.name || null,
+      // 套餐类型
+      packageType: item.package?.packType || null,
       // 充值相关信息
       rechargeInfo: item.recharge ? {
         id: item.recharge.id,

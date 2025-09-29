@@ -6,7 +6,7 @@ import { ConsoleModule } from 'nestjs-console';
 import { HttpExceptionFilter } from './core/filters/http-exception.filter';
 import { LoggingInterceptor } from './core/interceptors/logging.interceptor';
 import { ResponseInterceptor } from './core/interceptors/response.interceptor';
-import { AuthGuard } from './core/guards/auth.guard';
+// import { AuthGuard } from './core/guards/auth.guard';
 // 共享模块
 import { SharedModule } from './shared/shared.module';
 // 业务模块
